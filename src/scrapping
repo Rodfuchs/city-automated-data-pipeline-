@@ -1,0 +1,29 @@
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+import re
+
+urls = [
+    "https://en.wikipedia.org/wiki/Berlin",
+    "https://en.wikipedia.org/wiki/Hamburg",
+    "https://en.wikipedia.org/wiki/Munich",
+    "https://en.wikipedia.org/wiki/Buenos_Aires"
+]
+
+city, year, population = [], [], []
+
+for url in urls:
+    response = requests.get(url)
+    soup = BeautifulSoup(response.content, 'html.parser')
+
+    for y in soup.find(class_='table-pale').find_all('th'):
+        if not y.find(string=re.compile("±%|Pop.|Year", re.IGNORECASE)):
+            year.append(y.get_text())
+
+    for pop in soup.find(class_='table-pale').find_all("td"):
+        if not pop.find(string=re.compile("%|—|Population", re.IGNORECASE)):
+            population.append(pop.get_text())
+            city.append(soup.find("h1").get_text())
+
+population_df = pd.DataFrame({'year': year, 'population': population, 'city': city})
+print(population_df.head())
