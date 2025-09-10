@@ -1,45 +1,54 @@
 import requests
 import pandas as pd
 
-api_key = "YOUR_RAPIDAPI_KEY"
+def fetch_flight_data(iatas, api_key):
+    """
+    Fetch flight departures and arrivals for a list of IATA codes.
+    iatas: list of airport codes
+    api_key: RapidAPI key for Aerodatabox
+    Returns two pandas DataFrames: departures_df, arrivals_df
+    """
+    departures_data, arrivals_data = [], []
 
-iatas = ["BER", "MUC", "HAM", "EZE"]
+    for iata_code in iatas:
+        url = f"https://aerodatabox.p.rapidapi.com/flights/airports/iata/{iata_code}"
+        querystring = {"offsetMinutes": "-120", "durationMinutes": "720", "direction": "Both"}
+        headers = {
+            "x-rapidapi-key": api_key,
+            "x-rapidapi-host": "aerodatabox.p.rapidapi.com"
+        }
+        response = requests.get(url, headers=headers, params=querystring).json()
 
-departures_data, arrivals_data = [], []
+        for dep in response.get("departures", []):
+            departures_data.append({
+                "iata": iata_code,
+                "arrival_city": dep["arrival"]["airport"]["name"],
+                "scheduled_time": dep["departure"]["scheduledTime"]["local"],
+                "arrival_time": dep["arrival"]["scheduledTime"]["local"],
+                "flight_status": dep["status"],
+                "airline": dep["airline"]["name"],
+                "flight_number": dep["number"]
+            })
 
-for iata_code in iatas:
-    url = f"https://aerodatabox.p.rapidapi.com/flights/airports/iata/{iata_code}"
-    querystring = {"offsetMinutes": "-120", "durationMinutes": "720", "direction": "Both"}
-    headers = {
-        "x-rapidapi-key": api_key,
-        "x-rapidapi-host": "aerodatabox.p.rapidapi.com"
-    }
-    response = requests.get(url, headers=headers, params=querystring).json()
+        for arr in response.get("arrivals", []):
+            arrivals_data.append({
+                "iata": iata_code,
+                "departure_city": arr["departure"]["airport"]["name"],
+                "scheduled_time": arr["departure"]["scheduledTime"]["local"],
+                "arrival_time": arr["arrival"]["scheduledTime"]["local"],
+                "flight_status": arr["status"],
+                "airline": arr["airline"]["name"],
+                "flight_number": arr["number"]
+            })
 
-    for dep in response.get("departures", []):
-        departures_data.append({
-            "iata": iata_code,
-            "arrival_city": dep["arrival"]["airport"]["name"],
-            "scheduled_time": dep["departure"]["scheduledTime"]["local"],
-            "arrival_time": dep["arrival"]["scheduledTime"]["local"],
-            "flight_status": dep["status"],
-            "airline": dep["airline"]["name"],
-            "flight_number": dep["number"]
-        })
+    departures_df = pd.DataFrame(departures_data)
+    arrivals_df = pd.DataFrame(arrivals_data)
 
-    for arr in response.get("arrivals", []):
-        arrivals_data.append({
-            "iata": iata_code,
-            "departure_city": arr["departure"]["airport"]["name"],
-            "scheduled_time": arr["departure"]["scheduledTime"]["local"],
-            "arrival_time": arr["arrival"]["scheduledTime"]["local"],
-            "flight_status": arr["status"],
-            "airline": arr["airline"]["name"],
-            "flight_number": arr["number"]
-        })
+    departures_df['scheduled_time'] = pd.to_datetime(departures_df['scheduled_time'])
+    departures_df['arrival_time'] = pd.to_datetime(departures_df['arrival_time'])
+    arrivals_df['scheduled_time'] = pd.to_datetime(arrivals_df['scheduled_time'])
+    arrivals_df['arrival_time'] = pd.to_datetime(arrivals_df['arrival_time'])
 
-departures_df = pd.DataFrame(departures_data)
-arrivals_df = pd.DataFrame(arrivals_data)
+    return departures_df, arrivals_df
 
-print(departures_df.head())
 print(arrivals_df.head())
