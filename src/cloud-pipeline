@@ -1,37 +1,170 @@
 import functions_framework
 import pandas as pd
+import sqlalchemy
 import requests
-from sqlalchemy import create_engine
 
-@functions_framework.http
+
 def retrieve_send_data(request):
-    engine = create_engine(connection())
-    cities = pd.read_sql('coordinates_df', con=engine)
-    iatas = pd.read_sql('airports', con=engine)
-
+    connection_string = connection()
+    cities = fetch_cities(connection_string)
+    iatas = fetch_iata(connection_string)
     weather_df = fetch_weather_data(cities)
     departures_df, arrivals_df = fetch_flight_data(iatas)
-
-    data_to_sql(weather_df, departures_df, arrivals_df, engine)
+    data_to_sql(weather_df, departures_df, arrivals_df, connection_string)
     return "Data has been updated"
 
 def connection():
     schema = "cities_cloud"
-    host = "YOUR_CLOUD_HOST"
+    host = "Your_Host"
     user = "root"
-    password = "your_password"
+    password = "Your_password"
     port = 3306
     return f'mysql+pymysql://{user}:{password}@{host}:{port}/{schema}'
 
+def fetch_cities(connection_string):
+    city_id = pd.read_sql('city_df', con=connection_string)
+    city_coordinates = pd.read_sql('coordinates_df', con=connection_string)
+    city_data = pd.merge(city_id, city_coordinates, on="city_id")
+    return city_data
+
+def fetch_iata(connection_string):
+    airport_iata = pd.read_sql('airports', con=connection_string)
+    return airport_iata
+
 def fetch_weather_data(cities):
-    # (pegamos tu función aquí)
-    pass
+    api_key = "API_key"
+    temp = []
+    temp_min = []
+    temp_max = []
+    feels_like = []
+    weather_type = []
+    humidity = []
+    date_time = []
+    ids = []
+    for _, id in cities.iterrows():
+        city_id = id["city_id"]
+        latitude = id["latitude"]
+        longitude = id["longitude"]
+
+        weather = requests.get(f"https://api.openweathermap.org/data/2.5/forecast?lat={latitude}&lon={longitude}&units=metric&appid={api_key}")
+        weather_json = weather.json()
+
+        lists = weather_json["list"]
+        
+        
+        for lis in lists:
+            temp.append(lis["main"]["temp"])
+            temp_min.append(lis['main']['temp_min'])
+            temp_max.append(lis['main']['temp_max'])
+            feels_like.append(lis['main']['feels_like'])
+            weather_type.append(lis['weather'][0]['description'])
+            humidity.append(lis['main']['humidity'])
+            date_time.append(lis['dt_txt'])
+            ids.append(city_id)
+    weather_df = pd.DataFrame({
+        "Temp": temp,
+        "city_id": ids,
+        "Temp_min": temp_min,
+        "Temp_max": temp_max,
+        "Feels_like": feels_like,
+        "Weather_type": weather_type,
+        "Humidity": humidity,
+        "date_time": date_time
+    })
+    weather_df['date_time'] = pd.to_datetime(weather_df['date_time'])
+    return weather_df
 
 def fetch_flight_data(iatas):
-    # (pegamos tu función aquí)
-    pass
+    dep_dep_city = []
+    dep_arr_city = []
+    dep_scheduled_time = []
+    dep_iata = []
+    dep_airlines = []
+    dep_status = []
+    dep_arrival_time = []
+    dep_flight_number = []
+    arr_scheduled_time = []
+    arr_iata = []
+    arr_airlines = []
+    arr_status = []
+    arr_arrival_time = []
+    arr_flight_number = []
+    arr_dep_city = []
+    arr_arr_city = []
+    for _, i in iatas.iterrows():
+        iata_code = i["iata"]
 
-def data_to_sql(weather_df, departures_df, arrivals_df, engine):
-    weather_df.to_sql("weather_df", if_exists='append', con=engine, index=False)
-    departures_df.to_sql("flight_departures", if_exists='append', con=engine, index=False)
-    arrivals_df.to_sql("flight_arrivals", if_exists='append', con=engine, index=False)
+        url = f"https://aerodatabox.p.rapidapi.com/flights/airports/iata/{iata_code}"
+
+        querystring = {"offsetMinutes": "-120", "durationMinutes": "720", "withLeg": "true", "direction": "Both", "withCancelled": "true", "withCodeshared": "true", "withCargo": "true", "withPrivate": "true", "withLocation": "false"}
+
+        headers = {
+            "x-rapidapi-key": "69f53b2cd8mshbecc722006fd546p162db0jsne262715df6cd",
+            "x-rapidapi-host": "aerodatabox.p.rapidapi.com"
+        }
+
+        response = requests.get(url, headers=headers, params=querystring)
+        flights = response.json()
+
+        departures = flights['departures']
+        arrivals = flights['arrivals']
+
+        for depar in departures:
+            if 'scheduledTime' in depar['arrival'] and 'scheduledTime' in depar['departure']:
+                
+                dep_arr_city.append(depar['arrival']['airport']['name'])
+                dep_scheduled_time.append(depar['departure']['scheduledTime']['local'])
+                dep_iata.append(iata_code)
+                dep_airlines.append(depar['airline']['name'])
+                dep_status.append(depar['status'])
+                dep_arrival_time.append(depar['arrival']['scheduledTime']['local'])
+                dep_flight_number.append(depar['number'])
+
+        for arri in arrivals:
+            if 'scheduledTime' in arri['arrival'] and 'scheduledTime' in arri['departure']:
+                
+                arr_dep_city.append(arri['departure']['airport']['name'])
+                arr_scheduled_time.append(arri['departure']['scheduledTime']['local'])
+                arr_iata.append(iata_code)
+                arr_airlines.append(arri['airline']['name'])
+                arr_status.append(arri['status'])
+                arr_arrival_time.append(arri['arrival']['scheduledTime']['local'])
+                arr_flight_number.append(arri['number'])
+    departures_df = pd.DataFrame({
+        
+        'arrival_city': dep_arr_city,
+        'scheduled_time': dep_scheduled_time,
+        'iata': dep_iata,
+        'airline': dep_airlines,
+        'flight_status': dep_status,
+        'arrival_time': dep_arrival_time,
+        'flight_number': dep_flight_number
+    })
+    arrivals_df = pd.DataFrame({
+        'departure_city': arr_dep_city,
+        'scheduled_time': arr_scheduled_time,
+        'iata': arr_iata,
+        'airline': arr_airlines,
+        'flight_status': arr_status,
+        'arrival_time': arr_arrival_time,
+        'flight_number': arr_flight_number
+    })
+    departures_df['scheduled_time'] = pd.to_datetime(departures_df['scheduled_time'])
+    departures_df['arrival_time'] = pd.to_datetime(departures_df['arrival_time'])
+    arrivals_df['scheduled_time'] = pd.to_datetime(arrivals_df['scheduled_time'])
+    arrivals_df['arrival_time'] = pd.to_datetime(arrivals_df['arrival_time'])
+    return departures_df, arrivals_df
+
+def data_to_sql(weather_df, departures_df, arrivals_df, connection_string):
+    weather_df.to_sql("weather_df",
+                      if_exists='append',
+                      con=connection_string,
+                      index=False)
+    departures_df.to_sql("flight_departures",
+                          if_exists='append',
+                          con=connection_string,
+                          index=False)
+    arrivals_df.to_sql("flight_arrivals",
+                        if_exists='append',
+                        con=connection_string,
+                        index=False)
