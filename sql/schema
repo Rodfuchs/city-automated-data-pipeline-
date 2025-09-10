@@ -1,0 +1,83 @@
+-- Drop the database if it already exists
+DROP DATABASE IF EXISTS cities_sql ;
+
+-- Create the database
+CREATE DATABASE cities_sql;
+
+-- Use the database
+USE cities_sql;
+
+-- Create the 'city' table
+CREATE TABLE city_df (
+    city_id INT AUTO_INCREMENT,
+    city VARCHAR(255) NOT NULL,
+    PRIMARY KEY (city_id)
+);
+
+-- Create the 'population' table
+CREATE TABLE population_df (
+    city_id INT,
+    year INT NOT NULL,
+    population INT,
+    FOREIGN KEY (city_id) REFERENCES city_df(city_id)
+);
+
+-- Create the 'coordinates' table
+CREATE TABLE coordinates_df (
+    city_id INT,
+    longitude VARCHAR(255) NOT NULL,
+    latitude VARCHAR(255) NOT NULL,
+    country VARCHAR(255) NOT NULL,
+    FOREIGN KEY (city_id) REFERENCES city_df(city_id)
+);
+
+-- Create the 'weather' table
+CREATE TABLE weather_df (
+    city_id INT,
+    date_time DATETIME NOT NULL,
+    Temp DECIMAL NOT NULL,
+    Temp_max DECIMAL NOT NULL,
+    Temp_min DECIMAL NOT NULL,
+    Feels_like DECIMAL NOT NULL,
+    Weather_type VARCHAR(255) NOT NULL,
+    Humidity INT NOT NULL,
+    FOREIGN KEY (city_id) REFERENCES city_df(city_id)
+);
+
+-- Create the 'airports' table
+CREATE TABLE airports (
+    iata VARCHAR(255) NOT NULL,
+    countryCode VARCHAR(255) NOT NULL,
+    airport_name VARCHAR(255) NOT NULL,
+    city_id INT,
+    PRIMARY KEY (iata),
+    FOREIGN KEY (city_id) REFERENCES city_df(city_id)
+);
+
+-- Create the 'departures' table
+CREATE TABLE flight_departures (
+    flight_id INT AUTO_INCREMENT,
+    iata VARCHAR(255) NOT NULL,
+    flight_number VARCHAR(255),
+    arrival_city VARCHAR(255),
+    scheduled_time DATETIME NOT NULL,
+    arrival_time DATETIME NOT NULL,
+    flight_status VARCHAR(255) NOT NULL,
+    airline VARCHAR(255) NOT NULL,
+    PRIMARY KEY (flight_id),
+    FOREIGN KEY (iata) REFERENCES airports (iata)
+);
+
+-- Create the 'arrivals' table
+CREATE TABLE flight_arrivals (
+    flight_id INT AUTO_INCREMENT,
+    iata VARCHAR(255) NOT NULL,
+    flight_number VARCHAR(255),
+    departure_city VARCHAR(255),
+    scheduled_time DATETIME NOT NULL,
+    arrival_time DATETIME NOT NULL,
+    flight_status VARCHAR(255) NOT NULL,
+    airline VARCHAR(255) NOT NULL,
+    PRIMARY KEY (flight_id),
+    FOREIGN KEY (iata) REFERENCES airports (iata)
+);
