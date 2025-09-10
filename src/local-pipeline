@@ -1,0 +1,16 @@
+import pandas as pd
+from sqlalchemy import create_engine
+
+def connection():
+    schema = "cities_sql"
+    host = "localhost"
+    user = "root"
+    password = "your_password"
+    port = 3306
+    return f'mysql+pymysql://{user}:{password}@{host}:{port}/{schema}'
+
+def data_to_sql(weather_df, departures_df, arrivals_df):
+    engine = create_engine(connection())
+    weather_df.to_sql("weather_df", con=engine, if_exists='append', index=False)
+    departures_df.to_sql("flight_departures", con=engine, if_exists='append', index=False)
+    arrivals_df.to_sql("flight_arrivals", con=engine, if_exists='append', index=False)
