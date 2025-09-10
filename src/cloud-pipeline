@@ -1,0 +1,37 @@
+import functions_framework
+import pandas as pd
+import requests
+from sqlalchemy import create_engine
+
+@functions_framework.http
+def retrieve_send_data(request):
+    engine = create_engine(connection())
+    cities = pd.read_sql('coordinates_df', con=engine)
+    iatas = pd.read_sql('airports', con=engine)
+
+    weather_df = fetch_weather_data(cities)
+    departures_df, arrivals_df = fetch_flight_data(iatas)
+
+    data_to_sql(weather_df, departures_df, arrivals_df, engine)
+    return "Data has been updated"
+
+def connection():
+    schema = "cities_cloud"
+    host = "YOUR_CLOUD_HOST"
+    user = "root"
+    password = "your_password"
+    port = 3306
+    return f'mysql+pymysql://{user}:{password}@{host}:{port}/{schema}'
+
+def fetch_weather_data(cities):
+    # (pegamos tu función aquí)
+    pass
+
+def fetch_flight_data(iatas):
+    # (pegamos tu función aquí)
+    pass
+
+def data_to_sql(weather_df, departures_df, arrivals_df, engine):
+    weather_df.to_sql("weather_df", if_exists='append', con=engine, index=False)
+    departures_df.to_sql("flight_departures", if_exists='append', con=engine, index=False)
+    arrivals_df.to_sql("flight_arrivals", if_exists='append', con=engine, index=False)
